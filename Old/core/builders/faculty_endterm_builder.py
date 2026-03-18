@@ -245,23 +245,14 @@ def build_analysis(question_data: list, chart_paths: list,
                      align=WD_ALIGN_PARAGRAPH.CENTER)
 
     # --- Section 4: Charts ---
-    # 13.5cm wide (1.5x), page break after every 2nd chart,
-    # no break after the last so signature stays on same page
     doc.add_paragraph()
     valid = [p for p in chart_paths if os.path.exists(p)]
     for idx, chart_path in enumerate(valid):
         para = doc.add_paragraph()
         para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        para.add_run().add_picture(chart_path, width=Cm(13.5))
-
-        is_last          = (idx == len(valid) - 1)
-        is_second_in_pair = (idx % 2 == 1)
-
-        if not is_last and is_second_in_pair:
-            pb_para = doc.add_paragraph()
-            pb_run  = pb_para.add_run()
-            pb_run._r.append(OxmlElement("w:br"))
-            pb_run._r[-1].set(qn("w:type"), "page")
+        para.add_run().add_picture(chart_path, width=Cm(14))
+        if idx < len(valid) - 1:
+            doc.add_paragraph()
 
     # --- Section 5: Signature ---
     doc.add_paragraph()

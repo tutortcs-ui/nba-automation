@@ -1,0 +1,17 @@
+# Secrets — NEVER commit these
+.streamlit/secrets.toml
+
+# Generated output files
+output/
+temp_charts/
+input/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# OS files
+.DS_Store
+Thumbs.db

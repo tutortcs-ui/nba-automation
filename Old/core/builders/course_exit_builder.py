@@ -1,16 +1,18 @@
 # =============================================================================
-# core/builders/faculty_endterm_builder.py
-# PURPOSE: Build Analysis + ATR Word documents for Faculty End-Term feedback.
+# core/builders/course_exit_builder.py
+# PURPOSE: Build Analysis + ATR Word documents for Course-Exit feedback.
 #
-# DIFFERENCES FROM COURSE-EXIT BUILDER:
-#   - Analysis title: "Analysis of Faculty Feedback (End-Term) on Teaching and Learning"
-#   - Title box: "% of Faculty Feedback Analysis (code name)"
-#   - Extra line after title box: "Name of Faculty: Dr. Biman Roy"
-#   - Data table: 4 rows (SA / Agree / Neutral / Disagree) instead of 3
-#   - Question labels: Q1, Q2... (no CO codes)
-#   - ATR subtitle: "(Teaching and Learning – End-Term)"
+# DOCUMENT SPECS (from original TMSL documents):
+#   - A4 page, 1-inch margins all sides
+#   - Header paragraphs: bold, 12.5pt (177800 EMU), centered
+#   - Analysis title box: full-width, bold+italic, centered
+#   - Data table: High / Moderate / Low rows, 10pt font, black borders
+#   - Charts: one per CO, stacked vertically, 14cm wide
+#   - ATR table: Sl.No | Feedback (CO code + desc) | Action Taken, 11pt
+#   - Signatures: right-aligned, dotted line + name
+#   - Header/footer: injected from assets/ after save
 #
-# CHANGING THIS FILE does not affect Course-Exit or Faculty Mid-Term.
+# CHANGING THIS FILE does not affect Faculty Mid-Term or Faculty End-Term.
 # =============================================================================
 
 import os
@@ -24,8 +26,7 @@ from core.shared.header_footer import inject_header_footer
 
 
 # -----------------------------------------------------------------------
-# XML HELPERS (same as course_exit_builder — duplicated intentionally
-# so each builder is fully self-contained and changes don't cross)
+# XML HELPERS — table and cell formatting
 # -----------------------------------------------------------------------
 
 def _set_table_borders(table, val="single", sz="4", color="000000"):
@@ -46,8 +47,8 @@ def _set_table_borders(table, val="single", sz="4", color="000000"):
 
 
 def _set_cell_borders_nil(cell):
-    tc   = cell._tc
-    tcPr = tc.get_or_add_tcPr()
+    tc    = cell._tc
+    tcPr  = tc.get_or_add_tcPr()
     tcBorders = OxmlElement("w:tcBorders")
     for side in ["top", "left", "bottom", "right"]:
         border = OxmlElement(f"w:{side}")
@@ -104,6 +105,7 @@ def _set_cell_shading(cell, fill="auto"):
 
 
 def _page_setup(doc):
+    """A4 page, 1-inch margins — used by both builders."""
     section = doc.sections[0]
     section.top_margin    = Cm(2.54)
     section.bottom_margin = Cm(2.54)
@@ -112,15 +114,17 @@ def _page_setup(doc):
 
 
 def _add_header_para(doc, text):
+    """Centered bold 12.5pt paragraph — used in both Analysis and ATR headers."""
     p   = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run = p.add_run(text)
     run.bold = True
-    run.font.size = Emu(177800)
+    run.font.size = Emu(177800)   # 12.5pt
     return p
 
 
 def _save_and_inject(doc, output_path: str, label: str):
+    """Save doc to output_path then inject TMSL header/footer."""
     out_dir = os.path.dirname(output_path)
     if out_dir:
         os.makedirs(out_dir, exist_ok=True)
@@ -137,28 +141,28 @@ def _save_and_inject(doc, output_path: str, label: str):
 def build_analysis(question_data: list, chart_paths: list,
                    course_info: dict, output_path: str) -> str:
     """
-    Build the Faculty End-Term Analysis document.
+    Build the Course-Exit Analysis document.
 
-    Key differences from course_exit_builder:
-      - Title line: "Analysis of Faculty Feedback (End-Term) on Teaching and Learning"
-      - Title box: "% of Faculty Feedback Analysis (code name)"
-      - Extra paragraph: "Name of Faculty: [name]"
-      - Data table has 4 rating rows: SA / Agree / Neutral / Disagree
+    Sections:
+      1. Header paragraphs (dept / title / year / respondents)
+      2. Title box (bold+italic, full width)
+      3. Data table (High / Moderate / Low percentages per CO)
+      4. Pie charts stacked vertically
+      5. Signature block (right-aligned)
     """
     doc = Document()
     _page_setup(doc)
 
-    dept         = course_info.get("department", "")
-    acad_year    = course_info.get("academic_year", "N/A")
-    n_resp       = course_info.get("respondent_count", 0)
-    course_code  = course_info.get("course_code", "")
-    course_name  = course_info.get("course_name", "")
-    faculty_name = course_info.get("faculty_name", "")
+    dept        = course_info.get("department", "")
+    acad_year   = course_info.get("academic_year", "N/A")
+    n_resp      = course_info.get("respondent_count", 0)
+    course_code = course_info.get("course_code", "")
+    course_name = course_info.get("course_name", "")
 
     # --- Section 1: Header paragraphs ---
     _add_header_para(doc, dept)
     doc.add_paragraph()
-    _add_header_para(doc, "Analysis of Faculty Feedback (End-Term) on Teaching and Learning")
+    _add_header_para(doc, "Analysis of Course-Exit Feedback (End-Term)")
     doc.add_paragraph()
     _add_header_para(doc, f"(CAY: {acad_year})")
     _add_header_para(doc, f"No. of Respondents: {n_resp}")
@@ -179,42 +183,33 @@ def build_analysis(question_data: list, chart_paths: list,
 
     p1 = tc.paragraphs[0]
     p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r1 = p1.add_run("% of Faculty Feedback Analysis ")
+    r1 = p1.add_run("% of Course-Exit Feedback Analysis ")
     r1.bold = True
     r2 = p1.add_run(f"({course_code} ")
-    r2.bold   = True
+    r2.bold  = True
     r2.italic = True
 
     p2 = tc.add_paragraph()
     p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r3 = p2.add_run(f"{course_name})")
+    r3 = p2.add_run(f"-{course_name} )")
     r3.bold   = True
     r3.italic = True
 
     doc.add_paragraph()
 
-    # Faculty name line — unique to faculty feedback
-    if faculty_name:
-        fn_para = doc.add_paragraph()
-        fn_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        fn_run = fn_para.add_run(f"Name of Faculty: {faculty_name}")
-        fn_run.bold = True
-        fn_run.font.size = Emu(177800)
-        doc.add_paragraph()
-
-    # --- Section 3: Data table (4 rating rows) ---
+    # --- Section 3: Data table ---
     num_qs      = len(question_data)
     first_col_w = 983
-    q_col_w     = max(1200, 9026 // max(num_qs, 1))  # dynamic width for many questions
+    co_col_w    = 1700
 
-    data_table = doc.add_table(rows=5, cols=num_qs + 1)  # 4 rating rows + header
-    _set_table_width_centered(data_table, first_col_w + q_col_w * num_qs)
+    data_table = doc.add_table(rows=4, cols=num_qs + 1)
+    _set_table_width_centered(data_table, first_col_w + co_col_w * num_qs)
     _set_table_borders(data_table, val="single", sz="4", color="000000")
 
     for row in data_table.rows:
         _set_col_width(row.cells[0], first_col_w)
         for i in range(1, num_qs + 1):
-            _set_col_width(row.cells[i], q_col_w)
+            _set_col_width(row.cells[i], co_col_w)
 
     def set_cell(cell, text, align=WD_ALIGN_PARAGRAPH.LEFT, bold=False):
         cell.text = ""
@@ -225,18 +220,15 @@ def build_analysis(question_data: list, chart_paths: list,
         run.bold = bold
         _set_cell_valign(cell, "center")
 
-    # Header row: question descriptions
     hdr = data_table.rows[0]
     set_cell(hdr.cells[0], "\u00a0%")
     for i, q in enumerate(question_data):
-        set_cell(hdr.cells[i + 1], q["description"])
+        set_cell(hdr.cells[i + 1], f"{q['code']} {q['description']}")
 
-    # Rating rows
     for row_idx, (label, pct_key) in enumerate([
-        ("Strongly Agree", "strongly_agree_pct"),
-        ("Agree",          "agree_pct"),
-        ("Neutral",        "neutral_pct"),
-        ("Disagree",       "disagree_pct"),
+        ("High",     "high_pct"),
+        ("Moderate", "moderate_pct"),
+        ("Low",      "low_pct"),
     ]):
         row = data_table.rows[row_idx + 1]
         set_cell(row.cells[0], label)
@@ -245,30 +237,23 @@ def build_analysis(question_data: list, chart_paths: list,
                      align=WD_ALIGN_PARAGRAPH.CENTER)
 
     # --- Section 4: Charts ---
-    # 13.5cm wide (1.5x), page break after every 2nd chart,
-    # no break after the last so signature stays on same page
     doc.add_paragraph()
     valid = [p for p in chart_paths if os.path.exists(p)]
     for idx, chart_path in enumerate(valid):
         para = doc.add_paragraph()
         para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        para.add_run().add_picture(chart_path, width=Cm(13.5))
-
-        is_last          = (idx == len(valid) - 1)
-        is_second_in_pair = (idx % 2 == 1)
-
-        if not is_last and is_second_in_pair:
-            pb_para = doc.add_paragraph()
-            pb_run  = pb_para.add_run()
-            pb_run._r.append(OxmlElement("w:br"))
-            pb_run._r[-1].set(qn("w:type"), "page")
+        para.add_run().add_picture(chart_path, width=Cm(14))
+        if idx < len(valid) - 1:
+            doc.add_paragraph()
 
     # --- Section 5: Signature ---
     doc.add_paragraph()
     doc.add_paragraph()
+
     sig1 = doc.add_paragraph()
     sig1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     sig1.add_run("………………………………………………………………").font.size = Pt(11)
+
     sig2 = doc.add_paragraph()
     sig2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     sig2.add_run("(Submitted by \u2013 Dr. Biman Roy )").font.size = Pt(11)
@@ -279,10 +264,13 @@ def build_analysis(question_data: list, chart_paths: list,
 def build_atr(question_data: list, action_taken_texts: list,
               course_info: dict, date_range: dict, output_path: str) -> str:
     """
-    Build the Faculty End-Term ATR document.
+    Build the Course-Exit ATR document.
 
-    Key difference from course_exit ATR:
-      - Subtitle: "(Teaching and Learning \u2013 End-Term)"
+    Sections:
+      1. Header paragraphs (IQAC / CAY / title / dept)
+      2. Intro paragraph with bold-italic date range
+      3. Table: Sl.No | Feedback | Action Taken
+      4. Signature block (right-aligned)
     """
     doc = Document()
     _page_setup(doc)
@@ -292,15 +280,15 @@ def build_atr(question_data: list, action_taken_texts: list,
     semester  = course_info.get("semester", "Odd Semester")
     date_str  = date_range.get("range_str", "N/A")
 
-    # --- Section 1: Headers ---
+    # --- Section 1: Header paragraphs ---
     _add_header_para(doc, "INTERNAL QUALITY ASSURANCE COMMITTEE (IQAC)")
     _add_header_para(doc, f"(CAY: {acad_year})")
     _add_header_para(doc, "Feedback Analysis and Action Taken Report")
-    _add_header_para(doc, "(Teaching and Learning \u2013 End-Term)")
+    _add_header_para(doc, "(Course-Exit Feedback)")
     _add_header_para(doc, dept)
     doc.add_paragraph()
 
-    # --- Section 2: Intro ---
+    # --- Section 2: Intro paragraph ---
     intro = doc.add_paragraph()
     intro.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
 
@@ -308,11 +296,12 @@ def build_atr(question_data: list, action_taken_texts: list,
         r = intro.add_run(text)
         r.bold   = bold
         r.italic = italic
-        r.font.size = Emu(139700)
+        r.font.size = Emu(139700)   # 9.75pt
 
     add_run("The feedback was collected from the students during ")
     add_run(date_str, bold=True, italic=True)
     add_run(f" (for {semester}), post completion of evaluation and assessment.")
+
     doc.add_paragraph()
 
     # --- Section 3: ATR table ---
@@ -343,33 +332,41 @@ def build_atr(question_data: list, action_taken_texts: list,
     for i, (q, action_text) in enumerate(zip(question_data, action_taken_texts)):
         row = table.rows[i + 1]
 
+        # Sl. No.
         sl = row.cells[0]
         sl.text = ""
         sl_p = sl.paragraphs[0]
         sl_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        sl_p.add_run(str(i + 1)).font.size = Pt(11)
+        sl_r = sl_p.add_run(str(i + 1))
+        sl_r.font.size = Pt(11)
         _set_cell_valign(sl, "center")
 
+        # Feedback: CO code + description
         fb = row.cells[1]
         fb.text = ""
         fb_p = fb.paragraphs[0]
         fb_p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        fb_p.add_run(q["description"]).font.size = Pt(11)
+        fb_r = fb_p.add_run(f"{q['code']} {q['description']}")
+        fb_r.font.size = Pt(11)
         _set_cell_valign(fb, "center")
 
+        # Action Taken
         at = row.cells[2]
         at.text = ""
         at_p = at.paragraphs[0]
         at_p.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
-        at_p.add_run(action_text).font.size = Pt(11)
+        at_r = at_p.add_run(action_text)
+        at_r.font.size = Pt(11)
         _set_cell_valign(at, "center")
 
     # --- Section 4: Signature ---
     doc.add_paragraph()
     doc.add_paragraph()
+
     sig1 = doc.add_paragraph()
     sig1.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     sig1.add_run("     \u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026\u2026..     ").font.size = Pt(11)
+
     sig2 = doc.add_paragraph()
     sig2.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     sig2.add_run(

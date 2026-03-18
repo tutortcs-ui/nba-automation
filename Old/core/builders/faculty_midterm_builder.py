@@ -1,16 +1,13 @@
 # =============================================================================
-# core/builders/faculty_endterm_builder.py
-# PURPOSE: Build Analysis + ATR Word documents for Faculty End-Term feedback.
+# core/builders/faculty_midterm_builder.py
+# PURPOSE: Build Analysis + ATR Word documents for Faculty Mid-Term feedback.
 #
-# DIFFERENCES FROM COURSE-EXIT BUILDER:
-#   - Analysis title: "Analysis of Faculty Feedback (End-Term) on Teaching and Learning"
-#   - Title box: "% of Faculty Feedback Analysis (code name)"
-#   - Extra line after title box: "Name of Faculty: Dr. Biman Roy"
-#   - Data table: 4 rows (SA / Agree / Neutral / Disagree) instead of 3
-#   - Question labels: Q1, Q2... (no CO codes)
-#   - ATR subtitle: "(Teaching and Learning – End-Term)"
+# DIFFERENCES FROM FACULTY END-TERM BUILDER:
+#   - Analysis title: "Analysis of Faculty Feedback (Mid-Term) on Teaching and Learning"
+#   - Title box: "Faculty Feedback Analysis (code-name)"  [no % prefix]
+#   - ATR subtitle: "(Teaching and Learning)"  [no "End-Term"]
 #
-# CHANGING THIS FILE does not affect Course-Exit or Faculty Mid-Term.
+# CHANGING THIS FILE does not affect Course-Exit or Faculty End-Term.
 # =============================================================================
 
 import os
@@ -24,8 +21,7 @@ from core.shared.header_footer import inject_header_footer
 
 
 # -----------------------------------------------------------------------
-# XML HELPERS (same as course_exit_builder — duplicated intentionally
-# so each builder is fully self-contained and changes don't cross)
+# XML HELPERS (self-contained copy — intentional for modularity)
 # -----------------------------------------------------------------------
 
 def _set_table_borders(table, val="single", sz="4", color="000000"):
@@ -137,13 +133,11 @@ def _save_and_inject(doc, output_path: str, label: str):
 def build_analysis(question_data: list, chart_paths: list,
                    course_info: dict, output_path: str) -> str:
     """
-    Build the Faculty End-Term Analysis document.
+    Build the Faculty Mid-Term Analysis document.
 
-    Key differences from course_exit_builder:
-      - Title line: "Analysis of Faculty Feedback (End-Term) on Teaching and Learning"
-      - Title box: "% of Faculty Feedback Analysis (code name)"
-      - Extra paragraph: "Name of Faculty: [name]"
-      - Data table has 4 rating rows: SA / Agree / Neutral / Disagree
+    Key differences from faculty_endterm_builder:
+      - Title: "Analysis of Faculty Feedback (Mid-Term) on Teaching and Learning"
+      - Title box prefix: "Faculty Feedback Analysis" (no "%" prefix)
     """
     doc = Document()
     _page_setup(doc)
@@ -158,7 +152,7 @@ def build_analysis(question_data: list, chart_paths: list,
     # --- Section 1: Header paragraphs ---
     _add_header_para(doc, dept)
     doc.add_paragraph()
-    _add_header_para(doc, "Analysis of Faculty Feedback (End-Term) on Teaching and Learning")
+    _add_header_para(doc, "Analysis of Faculty Feedback (Mid-Term) on Teaching and Learning")
     doc.add_paragraph()
     _add_header_para(doc, f"(CAY: {acad_year})")
     _add_header_para(doc, f"No. of Respondents: {n_resp}")
@@ -179,21 +173,16 @@ def build_analysis(question_data: list, chart_paths: list,
 
     p1 = tc.paragraphs[0]
     p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r1 = p1.add_run("% of Faculty Feedback Analysis ")
-    r1.bold = True
-    r2 = p1.add_run(f"({course_code} ")
+    r1 = p1.add_run("Faculty Feedback Analysis ")
+    r1.bold   = True
+    r1.italic = True
+    r2 = p1.add_run(f"({course_code}-{course_name})")
     r2.bold   = True
     r2.italic = True
 
-    p2 = tc.add_paragraph()
-    p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    r3 = p2.add_run(f"{course_name})")
-    r3.bold   = True
-    r3.italic = True
-
     doc.add_paragraph()
 
-    # Faculty name line — unique to faculty feedback
+    # Faculty name line
     if faculty_name:
         fn_para = doc.add_paragraph()
         fn_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -205,9 +194,9 @@ def build_analysis(question_data: list, chart_paths: list,
     # --- Section 3: Data table (4 rating rows) ---
     num_qs      = len(question_data)
     first_col_w = 983
-    q_col_w     = max(1200, 9026 // max(num_qs, 1))  # dynamic width for many questions
+    q_col_w     = max(1200, 9026 // max(num_qs, 1))
 
-    data_table = doc.add_table(rows=5, cols=num_qs + 1)  # 4 rating rows + header
+    data_table = doc.add_table(rows=5, cols=num_qs + 1)
     _set_table_width_centered(data_table, first_col_w + q_col_w * num_qs)
     _set_table_borders(data_table, val="single", sz="4", color="000000")
 
@@ -225,13 +214,11 @@ def build_analysis(question_data: list, chart_paths: list,
         run.bold = bold
         _set_cell_valign(cell, "center")
 
-    # Header row: question descriptions
     hdr = data_table.rows[0]
     set_cell(hdr.cells[0], "\u00a0%")
     for i, q in enumerate(question_data):
         set_cell(hdr.cells[i + 1], q["description"])
 
-    # Rating rows
     for row_idx, (label, pct_key) in enumerate([
         ("Strongly Agree", "strongly_agree_pct"),
         ("Agree",          "agree_pct"),
@@ -245,23 +232,14 @@ def build_analysis(question_data: list, chart_paths: list,
                      align=WD_ALIGN_PARAGRAPH.CENTER)
 
     # --- Section 4: Charts ---
-    # 13.5cm wide (1.5x), page break after every 2nd chart,
-    # no break after the last so signature stays on same page
     doc.add_paragraph()
     valid = [p for p in chart_paths if os.path.exists(p)]
     for idx, chart_path in enumerate(valid):
         para = doc.add_paragraph()
         para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        para.add_run().add_picture(chart_path, width=Cm(13.5))
-
-        is_last          = (idx == len(valid) - 1)
-        is_second_in_pair = (idx % 2 == 1)
-
-        if not is_last and is_second_in_pair:
-            pb_para = doc.add_paragraph()
-            pb_run  = pb_para.add_run()
-            pb_run._r.append(OxmlElement("w:br"))
-            pb_run._r[-1].set(qn("w:type"), "page")
+        para.add_run().add_picture(chart_path, width=Cm(14))
+        if idx < len(valid) - 1:
+            doc.add_paragraph()
 
     # --- Section 5: Signature ---
     doc.add_paragraph()
@@ -279,10 +257,10 @@ def build_analysis(question_data: list, chart_paths: list,
 def build_atr(question_data: list, action_taken_texts: list,
               course_info: dict, date_range: dict, output_path: str) -> str:
     """
-    Build the Faculty End-Term ATR document.
+    Build the Faculty Mid-Term ATR document.
 
-    Key difference from course_exit ATR:
-      - Subtitle: "(Teaching and Learning \u2013 End-Term)"
+    Key difference from faculty_endterm ATR:
+      - Subtitle: "(Teaching and Learning)"  — no "End-Term"
     """
     doc = Document()
     _page_setup(doc)
@@ -296,7 +274,7 @@ def build_atr(question_data: list, action_taken_texts: list,
     _add_header_para(doc, "INTERNAL QUALITY ASSURANCE COMMITTEE (IQAC)")
     _add_header_para(doc, f"(CAY: {acad_year})")
     _add_header_para(doc, "Feedback Analysis and Action Taken Report")
-    _add_header_para(doc, "(Teaching and Learning \u2013 End-Term)")
+    _add_header_para(doc, "(Teaching and Learning)")     # no "End-Term" here
     _add_header_para(doc, dept)
     doc.add_paragraph()
 
