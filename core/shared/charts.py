@@ -2,13 +2,11 @@
 # core/shared/charts.py
 # PURPOSE: Generate pie charts — white background, fixed identical pixel size.
 #
-# LABEL STRATEGY:
-#   - Slices >= 5%: % inside slice via matplotlib autopct (always correct)
-#   - Slices  < 5%: no label on chart — shown in legend only
-#
-# SIZE STRATEGY:
-#   - Fixed 7.5 x 5.7 inches at 150 dpi = 1125 x 855 px every chart
-#   - bbox_inches=None + explicit white on all layers = no black borders
+# SIZE CALCULATION:
+#   Canvas: 7.5 x 5.7 inches at 150 dpi = 1125 x 855 px
+#   Inserted in Word at 11cm wide:
+#     display height = (855/150)*2.54 * (11/19.05) = 8.35cm per chart
+#     two charts per page = 16.7cm → fits A4 usable height (24.62cm) comfortably
 # =============================================================================
 
 import os
@@ -26,18 +24,15 @@ COLOR_NEUTRAL        = "#f08c00"
 COLOR_DISAGREE       = "#dc2800"
 COLOR_TEXT           = "#1a1a2e"
 
-CHART_W   = 7.5    # inches  }  fixed canvas
-CHART_H   = 5.7    # inches  }  1125 x 855 px at 150 dpi
+CHART_W   = 7.5    # inches — 1125px at 150dpi
+CHART_H   = 5.7    # inches —  855px at 150dpi
 CHART_DPI = 150
 
 
 def generate_pie_chart(question: dict, output_dir: str) -> str:
     """
-    Generate one pie chart at exactly CHART_W x CHART_H inches.
-    White background throughout — no dark margins.
-
-    Slices >= 5% : % label inside slice (white bold 16pt via autopct)
-    Slices  < 5% : no label on chart — shown in legend only
+    Fixed canvas 1125x855px, white background, autopct for correct labels.
+    Insert in Word at 11cm wide → 8.35cm tall → two fit per A4 page.
     """
     os.makedirs(output_dir, exist_ok=True)
 
@@ -46,15 +41,13 @@ def generate_pie_chart(question: dict, output_dir: str) -> str:
     pcts   = [s["pct"]   for s in slices]
     colors = [s["color"] for s in slices]
 
-    # --- Figure setup: all layers white ---
     fig, ax = plt.subplots(figsize=(CHART_W, CHART_H))
-    fig.patch.set_facecolor("white")   # figure background
-    ax.set_facecolor("white")          # axes background
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
 
-    # Fixed margins: title at top, legend at bottom, pie in middle
+    # Fixed margins — title top 18%, legend bottom 22%, pie fills middle
     fig.subplots_adjust(top=0.82, bottom=0.22, left=0.05, right=0.95)
 
-    # autopct: show label inside only for slices >= 5%
     def autopct_fn(pct):
         return f"{pct:.0f}%" if pct >= 5 else ""
 
@@ -68,13 +61,11 @@ def generate_pie_chart(question: dict, output_dir: str) -> str:
         wedgeprops={"edgecolor": "white", "linewidth": 2.5},
     )
 
-    # Style inside labels: white bold 16pt
     for autotext in autotexts:
         autotext.set_color("white")
         autotext.set_fontweight("bold")
         autotext.set_fontsize(16)
 
-    # Legend at fixed position — all slices always shown with %
     ax.legend(
         wedges,
         [f"{l} \u2013 {p}%" for l, p in zip(labels, pcts)],
@@ -86,7 +77,6 @@ def generate_pie_chart(question: dict, output_dir: str) -> str:
         labelcolor=COLOR_TEXT,
     )
 
-    # Title at fixed position
     short_desc = (question["description"][:72] + "..."
                   if len(question["description"]) > 72
                   else question["description"])
@@ -102,8 +92,6 @@ def generate_pie_chart(question: dict, output_dir: str) -> str:
                  .replace("/", "-").replace("\\", "-").replace(":", "-"))
     filepath = os.path.join(output_dir, f"chart_{safe_code}.png")
 
-    # bbox_inches=None = fixed canvas size (no expansion)
-    # facecolor + edgecolor = white so no dark border appears
     fig.savefig(filepath, dpi=CHART_DPI, bbox_inches=None,
                 facecolor="white", edgecolor="none")
     plt.close(fig)
@@ -111,7 +99,6 @@ def generate_pie_chart(question: dict, output_dir: str) -> str:
 
 
 def generate_all_charts(question_data: list, output_dir: str) -> list:
-    """Generate one chart per question. Returns list of PNG paths."""
     paths = []
     for q in question_data:
         path = generate_pie_chart(q, output_dir)
@@ -119,10 +106,6 @@ def generate_all_charts(question_data: list, output_dir: str) -> list:
         print(f"  \u2713 Chart: {path}")
     return paths
 
-
-# -----------------------------------------------------------------------
-# Slice builders
-# -----------------------------------------------------------------------
 
 def make_course_exit_slices(high_pct, moderate_pct, low_pct):
     return [

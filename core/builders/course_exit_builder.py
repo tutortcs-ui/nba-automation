@@ -244,7 +244,7 @@ def build_analysis(question_data: list, chart_paths: list,
     for idx, chart_path in enumerate(valid):
         para = doc.add_paragraph()
         para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        para.add_run().add_picture(chart_path, width=Cm(13.5))
+        para.add_run().add_picture(chart_path, width=Cm(11))
 
         is_last          = (idx == len(valid) - 1)
         is_second_in_pair = (idx % 2 == 1)
