@@ -264,12 +264,16 @@ def build_analysis(question_data: list, chart_paths: list,
 
 
 def build_atr(question_data: list, action_taken_texts: list,
-              course_info: dict, date_range: dict, output_path: str) -> str:
+              course_info: dict, date_range: dict, output_path: str,
+              form_url: str = "", response_url: str = "") -> str:
     """
     Build the Faculty Mid-Term ATR document.
 
     Key difference from faculty_endterm ATR:
       - Subtitle: "(Teaching and Learning)"  — no "End-Term"
+    Extra args (mid-term only):
+      form_url     : Google Form URL shown as hyperlink in intro
+      response_url : Response sheet URL shown as hyperlink in intro
     """
     doc = Document()
     _page_setup(doc)
@@ -299,7 +303,60 @@ def build_atr(question_data: list, action_taken_texts: list,
 
     add_run("The feedback was collected from the students during ")
     add_run(date_str, bold=True, italic=True)
-    add_run(f" (for {semester}), post completion of evaluation and assessment.")
+    add_run(f" (for {semester}), post completion of evaluation and assessment ")
+    add_run("of CA2 (as per MAKAUT Academic Calendar).", bold=False, italic=False)
+
+    # Second intro paragraph — links + PAC transmission note
+    doc.add_paragraph()
+    intro2 = doc.add_paragraph()
+    intro2.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+
+    def add_run2(text, bold=False, italic=False, url=None):
+        # If url provided, add a hyperlink run; otherwise plain run
+        if url:
+            from docx.oxml.ns import qn
+            from docx.oxml import OxmlElement
+            # Add hyperlink relationship
+            r_id = intro2.part.relate_to(
+                url,
+                "http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink",
+                is_external=True,
+            )
+            hyperlink = OxmlElement("w:hyperlink")
+            hyperlink.set(qn("r:id"), r_id)
+            run = OxmlElement("w:r")
+            rPr = OxmlElement("w:rPr")
+            # Blue underline style for hyperlink
+            color = OxmlElement("w:color")
+            color.set(qn("w:val"), "0563C1")
+            u = OxmlElement("w:u")
+            u.set(qn("w:val"), "single")
+            sz = OxmlElement("w:sz")
+            sz.set(qn("w:val"), "20")   # 10pt = sz 20
+            rPr.append(color); rPr.append(u); rPr.append(sz)
+            run.append(rPr)
+            t = OxmlElement("w:t")
+            t.text = text
+            run.append(t)
+            hyperlink.append(run)
+            intro2._p.append(hyperlink)
+        else:
+            r = intro2.add_run(text)
+            r.bold   = bold
+            r.italic = italic
+            r.font.size = Emu(139700)
+
+    form_display     = form_url     if form_url     else "Google Form"
+    response_display = response_url if response_url else "Response Link"
+
+    add_run2("The Feedback Link/Google Form used is provided here : ")
+    add_run2(form_display, url=form_url or None)
+    add_run2(". The response is included here: ")
+    add_run2(response_display, url=response_url or None)
+    add_run2(". All parameters mentioned in the feedback have been analyzed. "
+             "The following are the feedback and actions taken, as submitted "
+             "to PAC for onward transmission to IQAC.")
+
     doc.add_paragraph()
 
     # --- Section 3: ATR table ---
@@ -308,7 +365,7 @@ def build_atr(question_data: list, action_taken_texts: list,
     _set_table_width_centered(table, 10800)
     _set_table_borders(table, val="single", sz="4", color="000000")
 
-    COL_WIDTHS = [565, 4094, 6141]
+    COL_WIDTHS = [400, 2800, 7600]   # Sl.No narrow, Feedback compact, Action Taken gets most space
     for row in table.rows:
         for i, cell in enumerate(row.cells):
             _set_col_width(cell, COL_WIDTHS[i])

@@ -198,4 +198,3 @@ Add a new entry:
 - **Stage 2:** Streamlit web UI — upload Excel in browser, download Word files
 - **Stage 3:** Google Drive integration — auto-save outputs to your Drive
 - **Stage 4:** Google OAuth login — for use by colleagues
-.

@@ -121,7 +121,8 @@ def cached_parse(file_bytes: bytes, file_name: str, feedback_type: str) -> dict:
         os.unlink(tmp_path)
 
 
-def build_docs(file_bytes: bytes, feedback_type: str, course_info: dict) -> tuple:
+def build_docs(file_bytes: bytes, feedback_type: str, course_info: dict,
+               form_url: str = "", response_url: str = "") -> tuple:
     with tempfile.TemporaryDirectory() as tmpdir:
         excel_path = os.path.join(tmpdir, "responses.xlsx")
         with open(excel_path, "wb") as f:
@@ -147,7 +148,8 @@ def build_docs(file_bytes: bytes, feedback_type: str, course_info: dict) -> tupl
             fe_atr(data["question_data"], action_taken, course_info, data["date_range"], atr_path)
         elif feedback_type == "faculty_midterm":
             fm_analysis(data["question_data"], chart_paths, course_info, analysis_path)
-            fm_atr(data["question_data"], action_taken, course_info, data["date_range"], atr_path)
+            fm_atr(data["question_data"], action_taken, course_info, data["date_range"], atr_path,
+                   form_url=form_url, response_url=response_url)
 
         with open(analysis_path, "rb") as f: analysis_bytes = f.read()
         with open(atr_path,      "rb") as f: atr_bytes      = f.read()
@@ -246,6 +248,15 @@ faculty_name = ""
 if feedback_type in ("faculty_endterm", "faculty_midterm"):
     faculty_name = st.text_input("Faculty Name", value=ci.get("faculty_name",""), placeholder="e.g. Dr. Biman Roy")
 
+# Mid-term only: Google Form and Response URLs shown in ATR intro paragraph
+form_url = ""
+response_url = ""
+if feedback_type == "faculty_midterm":
+    st.markdown('<div class="section-label" style="margin-top:0.8rem">ATR Links (Mid-Term)</div>', unsafe_allow_html=True)
+    form_url     = st.text_input("Google Form URL",  value="", placeholder="https://forms.google.com/...")
+    response_url = st.text_input("Response Sheet URL", value="", placeholder="https://docs.google.com/spreadsheets/...")
+    st.caption("These appear as hyperlinks in the ATR intro paragraph. Leave blank to use placeholder text.")
+
 # STEP 5 — Generate
 st.markdown("<hr>", unsafe_allow_html=True)
 st.markdown('<div class="section-label">Step 5 — Generate</div>', unsafe_allow_html=True)
@@ -266,7 +277,8 @@ if st.button("⚙  Generate Analysis + ATR Documents", disabled=not ready):
     }
     with st.spinner("Building documents… this takes a few seconds"):
         try:
-            ab, tb = build_docs(file_bytes, feedback_type, course_info)
+            ab, tb = build_docs(file_bytes, feedback_type, course_info,
+                                        form_url=form_url, response_url=response_url)
             st.session_state.generated      = True
             st.session_state.analysis_bytes = ab
             st.session_state.atr_bytes      = tb

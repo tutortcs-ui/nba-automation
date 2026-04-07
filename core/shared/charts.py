@@ -1,18 +1,20 @@
 # =============================================================================
 # core/shared/charts.py
-# PURPOSE: Generate pie charts — fixed identical pixel dimensions every time.
+# PURPOSE: Generate pie charts — white background, fixed identical pixel size.
 #
-# KEY FIX: savefig uses bbox_inches=None (not "tight") so every chart is
-# exactly figsize * dpi pixels. Long legend text wraps rather than
-# expanding the canvas. All charts are identical size in the document.
+# LABEL STRATEGY:
+#   - Slices >= 5%: % inside slice via matplotlib autopct (always correct)
+#   - Slices  < 5%: no label on chart — shown in legend only
+#
+# SIZE STRATEGY:
+#   - Fixed 7.5 x 5.7 inches at 150 dpi = 1125 x 855 px every chart
+#   - bbox_inches=None + explicit white on all layers = no black borders
 # =============================================================================
 
 import os
-import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 
 
 COLOR_HIGH           = "#2864c8"
@@ -24,19 +26,18 @@ COLOR_NEUTRAL        = "#f08c00"
 COLOR_DISAGREE       = "#dc2800"
 COLOR_TEXT           = "#1a1a2e"
 
-# Fixed canvas: 7.5 x 5.7 inches at 150 dpi = 1125 x 855 px — every chart identical
-CHART_W   = 7.5
-CHART_H   = 5.7
+CHART_W   = 7.5    # inches  }  fixed canvas
+CHART_H   = 5.7    # inches  }  1125 x 855 px at 150 dpi
 CHART_DPI = 150
 
 
 def generate_pie_chart(question: dict, output_dir: str) -> str:
     """
     Generate one pie chart at exactly CHART_W x CHART_H inches.
+    White background throughout — no dark margins.
 
-    Slices >= 5% : % label inside slice (white bold 16pt)
+    Slices >= 5% : % label inside slice (white bold 16pt via autopct)
     Slices  < 5% : no label on chart — shown in legend only
-    Canvas size is fixed — all charts identical, no bbox expansion.
     """
     os.makedirs(output_dir, exist_ok=True)
 
@@ -45,42 +46,40 @@ def generate_pie_chart(question: dict, output_dir: str) -> str:
     pcts   = [s["pct"]   for s in slices]
     colors = [s["color"] for s in slices]
 
+    # --- Figure setup: all layers white ---
     fig, ax = plt.subplots(figsize=(CHART_W, CHART_H))
-    fig.patch.set_facecolor("white")
+    fig.patch.set_facecolor("white")   # figure background
+    ax.set_facecolor("white")          # axes background
 
-    # Reserve fixed space for title (top) and legend (bottom)
-    # so the pie circle itself is always the same size
+    # Fixed margins: title at top, legend at bottom, pie in middle
     fig.subplots_adjust(top=0.82, bottom=0.22, left=0.05, right=0.95)
 
-    wedges, _ = ax.pie(
+    # autopct: show label inside only for slices >= 5%
+    def autopct_fn(pct):
+        return f"{pct:.0f}%" if pct >= 5 else ""
+
+    wedges, _, autotexts = ax.pie(
         pcts,
         labels=None,
         colors=colors,
-        autopct=None,
+        autopct=autopct_fn,
+        pctdistance=0.65,
         startangle=90,
         wedgeprops={"edgecolor": "white", "linewidth": 2.5},
     )
 
-    # Inside labels for slices >= 5%
-    cumulative = 0.0
-    for i, (wedge, pct) in enumerate(zip(wedges, pcts)):
-        angle_deg = cumulative + (pct / 2.0) * (360.0 / 100.0)
-        angle_rad = np.deg2rad(90.0 - angle_deg)
-        cumulative += pct * (360.0 / 100.0)
+    # Style inside labels: white bold 16pt
+    for autotext in autotexts:
+        autotext.set_color("white")
+        autotext.set_fontweight("bold")
+        autotext.set_fontsize(16)
 
-        if pct >= 5:
-            x = 0.65 * np.cos(angle_rad)
-            y = 0.65 * np.sin(angle_rad)
-            ax.text(x, y, f"{pct}%",
-                    ha="center", va="center",
-                    color="white", fontweight="bold", fontsize=16)
-
-    # Legend — placed at fixed position inside the figure
-    legend = ax.legend(
+    # Legend at fixed position — all slices always shown with %
+    ax.legend(
         wedges,
         [f"{l} \u2013 {p}%" for l, p in zip(labels, pcts)],
         loc="lower center",
-        bbox_to_anchor=(0.5, -0.28),   # fixed anchor relative to axes
+        bbox_to_anchor=(0.5, -0.28),
         ncol=len(slices),
         fontsize=12,
         frameon=False,
@@ -103,8 +102,10 @@ def generate_pie_chart(question: dict, output_dir: str) -> str:
                  .replace("/", "-").replace("\\", "-").replace(":", "-"))
     filepath = os.path.join(output_dir, f"chart_{safe_code}.png")
 
-    # bbox_inches=None — use exact figsize, no expansion for content
-    fig.savefig(filepath, dpi=CHART_DPI, bbox_inches=None, facecolor="white")
+    # bbox_inches=None = fixed canvas size (no expansion)
+    # facecolor + edgecolor = white so no dark border appears
+    fig.savefig(filepath, dpi=CHART_DPI, bbox_inches=None,
+                facecolor="white", edgecolor="none")
     plt.close(fig)
     return filepath
 

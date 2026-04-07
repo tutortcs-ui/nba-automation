@@ -321,7 +321,7 @@ def build_atr(question_data: list, action_taken_texts: list,
     _set_table_width_centered(table, 10800)
     _set_table_borders(table, val="single", sz="4", color="000000")
 
-    COL_WIDTHS = [565, 4094, 6141]
+    COL_WIDTHS = [400, 2800, 7600]   # Sl.No narrow, Feedback compact, Action Taken gets most space
     for row in table.rows:
         for i, cell in enumerate(row.cells):
             _set_col_width(cell, COL_WIDTHS[i])
